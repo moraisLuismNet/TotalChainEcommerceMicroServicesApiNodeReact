@@ -1,0 +1,12 @@
+{
+  "name": "total-chain-ecommerce-api-node-react",
+  "version": "1.0.0",
+  "description": "Total Chain Ecommerce with React frontend and Node backend",
+  "scripts": {
+    "start": "docker compose up -d && start http://localhost:4200/",
+    "stop": "docker compose down",
+    "logs": "docker compose logs -f",
+    "rebuild": "docker compose build && docker compose up -d",
+    "services": "bash start-services.sh"
+  }
+}

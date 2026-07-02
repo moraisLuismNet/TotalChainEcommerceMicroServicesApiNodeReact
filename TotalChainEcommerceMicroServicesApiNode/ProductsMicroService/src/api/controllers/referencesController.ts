@@ -1,0 +1,14 @@
+import { Request, Response } from "express";
+import { ReferenceService } from "../../services/referenceService";
+import { HttpAuditLogService } from "../../services/httpClients/HttpAuditLogService";
+import { ResponseHelper } from "../../core/helpers/ResponseHelper";
+
+const referenceService = new ReferenceService();
+
+export async function getAll(req: Request, res: Response) { try { const items = await referenceService.getAllAsync(); return ResponseHelper.success(res, "References retrieved", items); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }
+export async function getById(req: Request, res: Response) { try { const { id } = req.params; const item = await referenceService.getByIdAsync(id); if (!item) return ResponseHelper.notFound(res, "Reference not found"); return ResponseHelper.success(res, "Reference retrieved", item); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }
+export async function create(req: Request, res: Response) { try { const { id, name } = req.body; if (!id || !name) return ResponseHelper.badRequest(res, "Id and Name are required"); const item = await referenceService.createAsync(req.body); await HttpAuditLogService.sendLog("Reference", item.id, "Created", null, item, req.userEmail || "system"); return ResponseHelper.created(res, "Reference created", item); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }
+export async function update(req: Request, res: Response) { try { const { id } = req.params; const existing = await referenceService.getByIdAsync(id); if (!existing) return ResponseHelper.notFound(res, "Reference not found"); const updated = await referenceService.updateAsync(id, req.body); await HttpAuditLogService.sendLog("Reference", id, "Updated", existing, updated, req.userEmail || "system"); return ResponseHelper.success(res, "Reference updated", updated); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }
+export async function getBySubCategory(req: Request, res: Response) { try { const { subCategoryId } = req.params; const items = await referenceService.getBySubCategoryAsync(subCategoryId); return ResponseHelper.success(res, "References retrieved", items); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }
+
+export async function remove(req: Request, res: Response) { try { const { id } = req.params; const existing = await referenceService.getByIdAsync(id); if (!existing) return ResponseHelper.notFound(res, "Reference not found"); await referenceService.deleteAsync(id); await HttpAuditLogService.sendLog("Reference", id, "Deleted", existing, null, req.userEmail || "system"); return ResponseHelper.success(res, "Reference deleted"); } catch (e: any) { return ResponseHelper.error(res, "Failed", e.message); } }

@@ -1,0 +1,17 @@
+import dotenv from "dotenv"; dotenv.config();
+import express from "express"; import cors from "cors";
+import swaggerUi from "swagger-ui-express"; import swaggerSpec from "./core/config/swagger";
+import { errorHandler } from "./api/middleware/errorHandler";
+import { requestLogger } from "./api/middleware/requestLogger";
+import { rateLimiter } from "./api/middleware/rateLimiter";
+import { sequelize } from "./core/config/database";
+import kardexRoutes from "./api/routes/kardexRoutes";
+const app = express(); const PORT = process.env.PORT || 5006;
+const corsOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()) : ["http://localhost:3000"];
+app.use(cors({ origin: corsOrigins, methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"], allowedHeaders: ["Content-Type","Authorization"], credentials: true }));
+app.options("*", cors()); app.use(express.json()); app.use(requestLogger); app.use(rateLimiter);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true, customSiteTitle: "KardexMicroService", swaggerOptions: { persistAuthorization: true } }));
+app.use("/api/kardex", kardexRoutes);
+app.use(errorHandler);
+async function start() { try { await sequelize.authenticate(); await sequelize.sync(); app.listen(PORT, () => { console.log(`KardexMicroService on port ${PORT}`); }); } catch (e) { console.error("Start error:", e); process.exit(1); } } start();
+export default app;

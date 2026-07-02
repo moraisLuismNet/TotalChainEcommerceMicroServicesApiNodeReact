@@ -1,0 +1,405 @@
+version: "3.8"
+
+volumes:
+  postgres_data:
+
+networks:
+  totalchain-net:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  users-manager:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/UsersManagerMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/UsersManagerMicroService/.env
+    ports:
+      - "5001:5001"
+    command: >
+      sh -c "
+        npm run dev &
+        until wget -q -O /dev/null http://127.0.0.1:5001/api-docs 2>/dev/null; do sleep 2; done &&
+        echo '=== Running seeds ===' &&
+        ./node_modules/.bin/sequelize-cli db:seed:all 2>&1 || echo 'Seeds already applied or failed (non-fatal)' &&
+        echo '=== Seeds done ===' &&
+        wait
+      "
+    environment:
+      - NODE_ENV=development
+      - PORT=5001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=UsersManagerMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=UsersManagerMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+      - MICROSERVICES_MAILS_API=http://mails:5008
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5001/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  products:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/ProductsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/ProductsMicroService/.env
+    ports:
+      - "5002:5002"
+    command: >
+      sh -c "
+        npm run dev &
+        until wget -q -O /dev/null http://127.0.0.1:5002/api-docs 2>/dev/null; do sleep 2; done &&
+        ./node_modules/.bin/sequelize-cli db:seed:all 2>&1 || echo 'Seeds already applied or failed (non-fatal)' &&
+        wait
+      "
+    environment:
+      - NODE_ENV=development
+      - PORT=5002
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=ProductsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=ProductsMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_KARDEX_API=http://kardex:5006
+      - MICROSERVICES_MAILS_API=http://mails:5008
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5002/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  shopings:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/ShopingsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/ShopingsMicroService/.env
+    ports:
+      - "5003:5003"
+    command: >
+      sh -c "
+        npm run dev &
+        until wget -q -O /dev/null http://127.0.0.1:5003/api-docs 2>/dev/null; do sleep 2; done &&
+        ./node_modules/.bin/sequelize-cli db:seed:all 2>&1 || echo 'Seeds already applied or failed (non-fatal)' &&
+        wait
+      "
+    environment:
+      - NODE_ENV=development
+      - PORT=5003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=ShopingsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=ShopingsMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_PRODUCTS_API=http://products:5002
+      - MICROSERVICES_PAYMENTS_API=http://payments:5004
+      - MICROSERVICES_USERS_API=http://users-manager:5001
+      - MICROSERVICES_MAILS_API=http://mails:5008
+      - MICROSERVICES_MESSAGES_API=http://messages:5009
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+      - STRIPE_SUCCESS_URL=http://localhost:4200/payment/success?session_id={CHECKOUT_SESSION_ID}
+      - STRIPE_CANCEL_URL=http://localhost:4200/payment/cancel
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5003/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  payments:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/PaymentsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/PaymentsMicroService/.env
+    ports:
+      - "5004:5004"
+    environment:
+      - NODE_ENV=development
+      - PORT=5004
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=PaymentsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=PaymentsMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_SHOPINGS_API=http://shopings:5003
+      - MICROSERVICES_USERS_API=http://users-manager:5001
+      - MICROSERVICES_MAILS_API=http://mails:5008
+      - MICROSERVICES_MESSAGES_API=http://messages:5009
+      - MICROSERVICES_SHIPMENTS_API=http://shipments:5005
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+      - STRIPE_SUCCESS_URL=http://localhost:4200/payment/success?session_id={CHECKOUT_SESSION_ID}
+      - STRIPE_CANCEL_URL=http://localhost:4200/payment/cancel
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5004/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  shipments:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/ShipmentsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/ShipmentsMicroService/.env
+    ports:
+      - "5005:5005"
+    environment:
+      - NODE_ENV=development
+      - PORT=5005
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=ShipmentsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=ShipmentsMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_SHOPINGS_API=http://shopings:5003
+      - MICROSERVICES_MAILS_API=http://mails:5008
+      - MICROSERVICES_MESSAGES_API=http://messages:5009
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5005/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  kardex:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/KardexMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/KardexMicroService/.env
+    ports:
+      - "5006:5006"
+    environment:
+      - NODE_ENV=development
+      - PORT=5006
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=KardexMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=KardexMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_PRODUCTS_API=http://products:5002
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5006/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  audit-logs:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/AuditLogsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/AuditLogsMicroService/.env
+    ports:
+      - "5007:5007"
+    environment:
+      - NODE_ENV=development
+      - PORT=5007
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=AuditLogsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=AuditLogsMS;Username=postgres;Password=root;Port=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5007/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mails:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/MailsMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/MailsMicroService/.env
+    ports:
+      - "5008:5008"
+    environment:
+      - NODE_ENV=development
+      - PORT=5008
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=MailsMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=MailsMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5008/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  messages:
+    build:
+      context: ./TotalChainEcommerceMicroServicesApiNode/MessagesMicroService
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - ./TotalChainEcommerceMicroServicesApiNode/MessagesMicroService/.env
+    ports:
+      - "5009:5009"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=development
+      - PORT=5009
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      - DB_DATABASE=MessagesMS
+      - DB_POSTGRESQL_CONNECTION=Host=postgres;Database=MessagesMS;Username=postgres;Password=root;Port=5432
+      - MICROSERVICES_AUDITLOGS_API=http://audit-logs:5007
+      - OPENWA_BASE_URL=http://host.docker.internal:2785/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - totalchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5009/api-docs/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./TotalChainEcommerceMicroServicesReact
+      dockerfile: Dockerfile
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "4200:80"
+    depends_on:
+      users-manager:
+        condition: service_healthy
+      products:
+        condition: service_healthy
+      shopings:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+      shipments:
+        condition: service_healthy
+      kardex:
+        condition: service_healthy
+      audit-logs:
+        condition: service_healthy
+      mails:
+        condition: service_healthy
+      messages:
+        condition: service_healthy
+    networks:
+      - totalchain-net

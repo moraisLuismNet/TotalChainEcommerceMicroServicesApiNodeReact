@@ -1,0 +1,9 @@
+{
+  "name": "totalchain-ecommerce-microservices-api-node",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root package for utility scripts",
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
