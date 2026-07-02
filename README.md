@@ -292,7 +292,7 @@ node create-databases.js   # Create all 9 databases
 ## Links
 
 - [Frontend README](TotalChainEcommerceReact/README.md)
-- [Backend AGENTS.md](TotalChainEcommerceMicroServicesApiNode/README.md)
+- [Backend README](TotalChainEcommerceMicroServicesApiNode/README.md)
 - [OpenWA Gateway](https://github.com/rmyndharis/OpenWA)
 - [DeepWiki Project Page](https://deepwiki.com/moraisLuismNet/TotalChainEcommerceMicroServicesApiNodeReact)
 
